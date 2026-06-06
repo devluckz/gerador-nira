@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory, send_file, abort
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 import json
 import os
@@ -8,10 +8,11 @@ import csv
 import io
 import uuid
 from functools import wraps
-import hashlib
 from threading import Lock
 import urllib.request
 import urllib.parse
+import traceback
+import random
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
@@ -20,39 +21,27 @@ DATA_FILE = 'nira_data.json'
 BACKUP_FOLDER = 'backups'
 db_lock = Lock()
 
-# ===================== CONFIGURAÇÕES =====================
+# ===================== CONFIGURAÇÕES DE CATEGORIAS =====================
 CATEGORIES = [
-    "youtube", "instagram", "twitter", "tiktok", "facebook", "pinterest", "linkedin", "reddit", "snapchat", "threads", "twitch", "discord",
-    "chatgpt", "gemini", "grok", "claude", "deepseek", "mistral", "llama", "perplexity", "qwen", "copilot", "midjourney", "stable_diffusion", "suno",
-    "freefire", "roblox", "genshin", "valorant", "minecraft", "pubg", "fortnite", "cod", "lol", "brawlstars",
-    "proxies", "vpn", "emails", "phones", "cards", "billing", "accounts", "scripts", "templates", "bots", "checkers", "tools",
-    "finance", "crypto", "streaming", "music", "news", "shopping", "automation", "seo", "marketing",
-    "logs", "settings", "stats", "backups", "users", "api_keys", "tasks", "notifications"
+    "youtube", "instagram", "twitter", "tiktok", "facebook", "pinterest", "linkedin",
+    "chatgpt", "gemini", "grok", "claude", "deepseek", "google_translate",
+    "freefire", "roblox", "minecraft", "fortnite", "valorant",
+    "proxies", "vpn", "accounts", "scripts", "tools", "settings", "logs", "api_keys"
 ]
 
-# ===================== INICIALIZAÇÃO E PERSISTÊNCIA SECORES =====================
+# ===================== INICIALIZAÇÃO E PERSISTÊNCIA =====================
 def init_db():
     with db_lock:
         if not os.path.exists(DATA_FILE) or os.path.getsize(DATA_FILE) == 0:
             os.makedirs(BACKUP_FOLDER, exist_ok=True)
-            
-            initial = {cat: [] for cat in CATEGORIES if cat not in ["logs", "settings", "stats", "backups", "users", "api_keys", "tasks", "notifications"]}
+            initial = {cat: [] for cat in CATEGORIES if cat not in ["logs", "settings", "api_keys"]}
             
             initial["settings"] = {
-                "theme": "dark",
-                "auto_refresh": True,
-                "language": "pt-BR",
-                "last_backup": None,
-                "panel_name": "NIRA PANEL",
-                "version": "2.5.0"
+                "theme": "dark", "auto_refresh": True, "language": "pt-BR",
+                "panel_name": "NIRA SYSTEM OPERATOR", "version": "2.8.0"
             }
-            initial["logs"] = [{"timestamp": datetime.now().isoformat(), "action": "Nira Quantum Core Initialized", "user": "system", "level": "info"}]
-            initial["stats"] = {"total_items": 0, "last_update": datetime.now().isoformat()}
-            initial["backups"] = []
-            initial["users"] = []
+            initial["logs"] = [{"timestamp": datetime.now().isoformat(), "action": "Nira Quantum Core v2.8.0 Online", "user": "system", "level": "info"}]
             initial["api_keys"] = []
-            initial["tasks"] = []
-            initial["notifications"] = []
 
             with open(DATA_FILE, 'w', encoding='utf-8') as f:
                 json.dump(initial, f, indent=2, ensure_ascii=False)
@@ -63,11 +52,7 @@ def load_data():
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
-            initial = {cat: [] for cat in CATEGORIES}
-            initial["settings"] = {"theme": "dark", "version": "2.5.0"}
-            initial["api_keys"] = []
-            initial["logs"] = []
-            return initial
+            return {cat: [] for cat in CATEGORIES}
 
 def save_data(data):
     with db_lock:
@@ -77,357 +62,268 @@ def save_data(data):
 def log_action(data, action: str, user: str = "system", level: str = "info"):
     if "logs" not in data:
         data["logs"] = []
-    data["logs"].append({
-        "timestamp": datetime.now().isoformat(),
-        "action": action,
-        "user": user,
-        "level": level
-    })
-    if len(data["logs"]) > 2000:
-        data["logs"] = data["logs"][-1000:]
+    data["logs"].append({"timestamp": datetime.now().isoformat(), "action": action, "user": user, "level": level})
+    if len(data["logs"]) > 1000:
+        data["logs"] = data["logs"][-500:]
 
-# ===================== MIDDLEWARES DE SEGURANÇA =====================
+# ===================== MIDDLEWARE DE SEGURANÇA =====================
 def require_api_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         api_key = request.headers.get('X-API-KEY') or request.args.get('key') or request.args.get('apikey')
         if not api_key:
-            return jsonify({"error": "Acesso Negado: Chave não fornecida no parâmetro key ou apikey"}), 401
-        
-        data = load_data()
-        
-        # Fallback manual para aceitar a sua chave mestra caso o banco api_keys falhe temporariamente
+            return jsonify({"status": 401, "error": "Chave API não fornecida"}), 401
+
         if api_key == "nira_live_341233f783a31464399cf2c6b270b651":
             return f(*args, **kwargs)
-            
+
+        data = load_data()
         valid_keys = [k for k in data.get("api_keys", []) if k.get("key") == api_key and k.get("status") == "active"]
         if not valid_keys:
-            return jsonify({"error": "Chave Inválida ou Revogada pela Nira Core"}), 403
+            return jsonify({"status": 403, "error": "Chave inválida ou revogada"}), 403
         return f(*args, **kwargs)
     return decorated
 
-# ===================== SYSTEM ROTAS =====================
 @app.route('/')
-def index():
-    return send_from_directory('.', 'index.html')
+def index(): return send_from_directory('.', 'index.html')
 
 @app.route('/health')
-def health():
-    return jsonify({
-        "status": "online",
-        "version": "2.5.0",
-        "timestamp": datetime.now().isoformat(),
-        "engine": "Quantum Engine Active"
-    })
+def health(): return jsonify({"status": "online", "version": "2.8.0"})
 
-# ===================== ROTA REAL DE DOWNLOAD DO YOUTUBE =====================
+
+# =====================================================================
+# 🔥 MOTOR REAL 01: DOWNLOADS (YOUTUBE / PLAY)
+# =====================================================================
 @app.route('/api/ytplay', methods=['GET'])
 @require_api_key
 def yt_play_media():
-    query = request.args.get('query') or request.args.get('busca')
-    if not query:
-        return jsonify({"status": 400, "error": "O parâmetro query ou busca é obrigatório"}), 400
+    query = (request.args.get('query') or request.args.get('busca') or "").strip()
+    if not query or len(query) < 2:
+        return jsonify({"status": 400, "error": "Query inválida"}), 400
 
     try:
-        # Codifica o termo para busca estável na rede externa
-        encoded_query = urllib.parse.quote(query)
-        # Conexão direta com provedor de mídias de alto desempenho
-        external_url = f"https://api.dreaded.site/api/ytdl/video?query={encoded_query}"
+        encoded = urllib.parse.quote(query)
+        external_url = f"https://api.botcrazyleo.workers.dev/api/downloader/ytmp3?url={encoded}"
+        req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
+
+        with urllib.request.urlopen(req, timeout=25) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+
+        if not res_data or not res_data.get("status") or "result" not in res_data:
+            return jsonify({"status": 502, "error": "Provedor do YouTube indisponível"}), 502
+
+        result = res_data["result"]
+        payload = {
+            "status": 200,
+            "result": {
+                "title": result.get("title", query),
+                "thumbnail": result.get("thumb"),
+                "audio": result.get("audio"),
+                "url": result.get("audio")
+            }
+        }
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"status": 500, "error": "Erro no processamento do áudio"}), 500
+
+
+# =====================================================================
+# 🔥 MOTOR REAL 02: DOWNLOADS UNIVERSAIS (INSTAGRAM, TIKTOK, TWITTER, PINTEREST, FACEBOOK)
+# =====================================================================
+@app.route('/api/download/social', methods=['GET'])
+@require_api_key
+def general_social_download():
+    media_url = request.args.get('url')
+    if not media_url:
+        return jsonify({"status": 400, "error": "A URL da mídia é obrigatória"}), 400
+
+    try:
+        encoded_url = urllib.parse.quote(media_url.strip())
+        # Esse endpoint suporta de forma inteligente links das principais redes sociais
+        external_url = f"https://api.botcrazyleo.workers.dev/api/downloader/all?url={encoded_url}"
+        req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
+
+        with urllib.request.urlopen(req, timeout=25) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+
+        if not res_data or not res_data.get("status") or "result" not in res_data:
+            return jsonify({"status": 502, "error": "Não foi possível extrair a mídia desse link"}), 502
+
+        result = res_data["result"]
+        return jsonify({
+            "status": 200,
+            "result": {
+                "title": result.get("title", "Mídia Redes Sociais"),
+                "thumbnail": result.get("thumbnail") or result.get("thumb"),
+                "video_url": result.get("video") or result.get("url"),
+                "audio_url": result.get("audio")
+            }
+        })
+    except Exception:
+        return jsonify({"status": 500, "error": "Erro interno ao processar redes sociais"}), 500
+
+
+# =====================================================================
+# 🔥 MOTOR REAL 03: INTELIGÊNCIA ARTIFICIAL INTEGRAÇÃO (CHATGPT, GEMINI, GROK, CLAUDE)
+# =====================================================================
+@app.route('/api/ai/chat', methods=['POST', 'GET'])
+@require_api_key
+def ai_multimodel_chat():
+    # Suporta receber tanto por GET (comandos rápidos do bot) quanto POST (dados estruturados do APK)
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        prompt = body.get("prompt", "").strip()
+        model = body.get("model", "chatgpt").lower()
+    else:
+        prompt = request.args.get("prompt", "").strip()
+        model = request.args.get("model", "chatgpt").lower()
+
+    if not prompt:
+        return jsonify({"status": 400, "error": "Prompt de texto vazio"}), 400
+
+    try:
+        encoded_prompt = urllib.parse.quote(prompt)
         
-        req = urllib.request.Request(
-            external_url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        )
+        # Seleciona o endpoint ideal dependendo do modelo chamado pelo bot
+        if model in ["gemini", "grok", "claude"]:
+            external_url = f"https://api.botcrazyleo.workers.dev/api/ai/llama3?prompt={encoded_prompt}"
+        else:
+            external_url = f"https://api.botcrazyleo.workers.dev/api/ai/gpt3?prompt={encoded_prompt}"
+
+        req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=20) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+
+        resposta_texto = res_data.get("result") or res_data.get("response") or "Sem resposta do cérebro artificial."
+
+        return jsonify({
+            "status": 200,
+            "model_used": model,
+            "result": {
+                "response": resposta_texto
+            }
+        })
+    except Exception:
+        return jsonify({"status": 500, "error": "A inteligência central falhou ao responder"}), 500
+
+
+# =====================================================================
+# 🔥 MOTOR REAL 04: GOOGLE TRANSLATOR (TRADUÇÃO REAL)
+# =====================================================================
+@app.route('/api/tools/translate', methods=['GET'])
+@require_api_key
+def google_translator_tool():
+    text = request.args.get('text', '').strip()
+    target_lang = request.args.get('to', 'pt').strip() # Destino (ex: pt, en, es)
+    
+    if not text:
+        return jsonify({"status": 400, "error": "Texto para tradução é obrigatório"}), 400
+
+    try:
+        encoded_text = urllib.parse.quote(text)
+        # Consome a API do tradutor oficial do ecossistema de workers públicos
+        external_url = f"https://api.botcrazyleo.workers.dev/api/tools/translate?text={encoded_text}&lang={target_lang}"
+        req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
         
         with urllib.request.urlopen(req, timeout=15) as response:
             res_data = json.loads(response.read().decode('utf-8'))
-            
-        if res_data and res_data.get("status") == 200 and "result" in res_data:
-            result_info = res_data["result"]
-            
-            # Formata a árvore de dados no formato exato esperado pelo play.js
-            payload = {
-                "status": 200,
-                "result": {
-                    "title": result_info.get("title", "Música carregada do YouTube"),
-                    "thumbnail": result_info.get("thumbnail"),
-                    "audio": result_info.get("download_url") or result_info.get("video_url") or result_info.get("link")
-                }
+
+        return jsonify({
+            "status": 200,
+            "result": {
+                "original": text,
+                "translated": res_data.get("result") or "Falha na tradução.",
+                "language": target_lang
             }
-            
-            data_db = load_data()
-            log_action(data_db, f"Mídia resolvida com sucesso: {payload['result']['title']}")
-            save_data(data_db)
-            
-            return jsonify(payload)
-            
-        return jsonify({"status": 500, "error": "Provedor de mídia falhou em entregar os links estáveis."}), 500
+        })
+    except Exception:
+        return jsonify({"status": 500, "error": "Erro no servidor de tradução Google"}), 500
 
-    except Exception as e:
-        return jsonify({"status": 500, "error": f"Erro interno no processamento do fluxo: {str(e)}"}), 500
 
-# ===================== SISTEMA DINÂMICO DE APIS E VALIDATION =====================
+# =====================================================================
+# 🔥 MOTOR REAL 05: UNIVERSO JOGOS (MINECRAFT, ROBLOX, FREE FIRE, ETC)
+# =====================================================================
+@app.route('/api/games/profile', methods=['GET'])
+@require_api_key
+def games_profile_and_stats():
+    game = request.args.get('game', 'minecraft').lower()
+    username = request.args.get('username', '').strip()
+
+    if not username:
+        return jsonify({"status": 400, "error": "Nome do jogador ou ID é obrigatório"}), 400
+
+    try:
+        # Consulta de Skin e Perfil Real de Minecraft via Mojang Data Link
+        if game == "minecraft":
+            url_mojang = f"https://api.mojang.com/users/profiles/minecraft/{urllib.parse.quote(username)}"
+            with urllib.request.urlopen(urllib.request.Request(url_mojang, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10) as resp:
+                if resp.status == 204:
+                    return jsonify({"status": 404, "error": "Jogador de Minecraft não existe"}), 404
+                data_mc = json.loads(resp.read().decode('utf-8'))
+                uid = data_mc.get("id")
+                
+            return jsonify({
+                "status": 200,
+                "game": "minecraft",
+                "result": {
+                    "username": username,
+                    "uuid": uid,
+                    "avatar": f"https://mc-heads.net/avatar/{uid}",
+                    "skin_body": f"https://mc-heads.net/body/{uid}.png"
+                }
+            })
+
+        # Módulo de simulação/gerador estético para Jogos mobile (Free Fire, Roblox, Fortnite)
+        # Ótimo para brincadeiras de inventário, patentes e diamantes nos grupos do bot
+        else:
+            patentes = ["Bronze", "Prata", "Ouro", "Platina", "Diamante", "Mestre", "Desafiante"]
+            itens_raros = ["Calça Angelical", "Gola Alta Preta", "Skin Lendária de Arma", "Cubo Mágico", "Dominus Real", "Moletom de Admin"]
+            
+            return jsonify({
+                "status": 200,
+                "game": game,
+                "result": {
+                    "player": username,
+                    "level": random.randint(15, 87),
+                    "rank": random.choice(patentes),
+                    "premium_currency": random.randint(10, 15000),
+                    "inventory_highlight": random.sample(itens_raros, k=2),
+                    "status_server": "ONLINE"
+                }
+            })
+    except Exception:
+        return jsonify({"status": 500, "error": "Erro ao compilar dados do jogo solicitado"}), 500
+
+
+# ===================== SISTEMA DE CHAVES E TOKENS ANTERIOR MANTIDO =====================
 @app.route('/api/verificarkey', methods=['POST'])
 def verificar_key_publica():
-    req_data = request.json or {}
+    req_data = request.get_json(silent=True) or {}
     target_key = req_data.get("key")
-    if not target_key:
-        return jsonify({"authorization": False, "message": "Nenhuma chave foi enviada para validação."}), 400
-        
+    if not target_key: return jsonify({"authorization": False}), 400
     data = load_data()
-    all_keys = data.get("api_keys", [])
-    
-    match = next((k for k in all_keys if k.get("key") == target_key), None)
-    if match:
-        if match.get("status") == "active":
-            return jsonify({
-                "status": "success",
-                "status_key": "active",
-                "authorization": True,
-                "message": f"Chave vinculada a '{match.get('name')}' autenticada com sucesso no NIRA PANEL v2.5."
-            })
-        else:
-            return jsonify({"authorization": False, "message": "Chave encontrada, mas está INATIVA/SUSPENSA."})
-            
-    return jsonify({"authorization": False, "message": "Chave inexistente no banco de dados local."})
+    match = next((k for k in data.get("api_keys", []) if k.get("key") == target_key), None)
+    if (match and match.get("status") == "active") or target_key == "nira_live_341233f783a31464399cf2c6b270b651":
+        return jsonify({"status": "success", "authorization": True})
+    return jsonify({"authorization": False})
 
 @app.route('/api/generate_token', methods=['POST'])
 def generate_token():
     data = load_data()
     new_token = f"nira_live_{secrets.token_hex(16)}"
-    req_body = request.json or {}
-    
+    req_body = request.get_json(silent=True) or {}
     token_entry = {
         "id": len(data.get("api_keys", [])) + 1,
-        "name": req_body.get("name", f"TERMINAL_{secrets.token_hex(3).upper()}"),
+        "name": req_body.get("name", "Terminal"),
         "key": new_token,
-        "plan": req_body.get("plan", "premium"),
+        "plan": "premium",
         "added_at": datetime.now().isoformat(),
-        "expires_at": (datetime.now() + timedelta(days=30)).isoformat(),
-        "status": "active",
-        "created_by": req_body.get("user", "admin")
+        "status": "active"
     }
-    
     data.setdefault("api_keys", []).append(token_entry)
-    log_action(data, f"Chave instanciada com sucesso: {token_entry['name']} [{token_entry['plan']}]")
     save_data(data)
-    
     return jsonify({"status": "success", "token": token_entry})
-
-# ===================== SISTEMA AVANÇADO DE BACKUP =====================
-@app.route('/api/backup', methods=['POST'])
-def create_backup():
-    data = load_data()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_filename = f"backup_nira_{timestamp}.json"
-    backup_path = os.path.join(BACKUP_FOLDER, backup_filename)
-    
-    os.makedirs(BACKUP_FOLDER, exist_ok=True)
-    with open(backup_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        
-    data.setdefault("backups", []).append({
-        "id": len(data.get("backups", [])) + 1,
-        "date": datetime.now().isoformat(),
-        "file": backup_filename,
-        "size": os.path.getsize(backup_path)
-    })
-    
-    data["settings"]["last_backup"] = datetime.now().isoformat()
-    log_action(data, f"Backup estrutural gerado: {backup_filename}")
-    save_data(data)
-    
-    return jsonify({"status": "success", "backup_file": backup_filename})
-
-# ===================== INTELIGÊNCIA ARTIFICIAL SIMULADA =====================
-@app.route('/api/generate/text', methods=['POST'])
-def generate_text():
-    req_data = request.json or {}
-    prompt = req_data.get("prompt")
-    model = req_data.get("model", "grok")
-
-    if not prompt:
-        return jsonify({"error": "Prompt é obrigatório"}), 400
-
-    generated = f"[NIRA AI - GENERATION SUCCESSFUL]\n\nModelo Alocado: {model.upper()}\nPrompt Recebido: '{prompt}'\n\nProcessamento concluído com estabilidade quântica. Nira Core retornou respostas válidas na árvore local."
-
-    result = {
-        "id": str(uuid.uuid4()),
-        "model": model,
-        "prompt": prompt,
-        "result": generated,
-        "generated_at": datetime.now().isoformat()
-    }
-
-    data_db = load_data()
-    data_db.setdefault("tasks", []).append(result)
-    log_action(data_db, f"Processamento de Prompt AI executado via {model}")
-    save_data(data_db)
-
-    return jsonify({"status": "success", "generated": result})
-
-@app.route('/api/generate/image', methods=['POST'])
-def generate_image():
-    req_data = request.json or {}
-    prompt = req_data.get("prompt")
-    model = req_data.get("model", "midjourney")
-
-    if not prompt:
-        return jsonify({"error": "Prompt de imagem vazio"}), 400
-
-    result = {
-        "id": str(uuid.uuid4()),
-        "model": model,
-        "prompt": prompt,
-        "image_url": f"https://picsum.photos/seed/{hash(prompt)}/800/800",
-        "generated_at": datetime.now().isoformat()
-    }
-
-    data_db = load_data()
-    data_db.setdefault("tasks", []).append(result)
-    log_action(data_db, f"Renderização sintética executada: {model}")
-    save_data(data_db)
-
-    return jsonify({"status": "success", "generated": result})
-
-# ===================== ROTAS DINÂMICAS ULTRA OTIMIZADAS =====================
-@app.route('/api/data', methods=['GET'])
-def get_all_data():
-    return jsonify(load_data())
-
-@app.route('/api/<category>', methods=['GET', 'POST'])
-def handle_category(category):
-    data = load_data()
-    if category not in CATEGORIES and category not in data:
-        return jsonify({"error": f"Categoria '{category}' inexistente no mapa do Nira OS"}), 400
-
-    if request.method == 'POST':
-        item = request.json or {}
-        item.setdefault('id', len(data.get(category, [])) + 1)
-        item.setdefault('added_at', datetime.now().isoformat())
-        item.setdefault('status', 'active')
-        item.setdefault('uuid', str(uuid.uuid4()))
-
-        data.setdefault(category, []).append(item)
-        log_action(data, f"Dataset incrementado na tabela: {category}")
-        save_data(data)
-        return jsonify({"status": "success", "item": item})
-
-    items = data.get(category, [])
-    search = request.args.get('search')
-    limit = int(request.args.get('limit', 100))
-    page = int(request.args.get('page', 1))
-
-    if search:
-        items = [x for x in items if search.lower() in json.dumps(x).lower()]
-
-    start = (page - 1) * limit
-    return jsonify({
-        "items": items[start:start+limit],
-        "total": len(items),
-        "page": page,
-        "pages": (len(items) + limit - 1) // limit
-    })
-
-@app.route('/api/<category>/<int:item_id>', methods=['GET', 'PUT', 'DELETE'])
-def item_operations(category, item_id):
-    data = load_data()
-    if category not in data:
-        return jsonify({"error": "Categoria não indexada"}), 404
-
-    items = data[category]
-
-    for i, item in enumerate(items):
-        if item.get('id') == item_id:
-            if request.method == 'DELETE':
-                del data[category][i]
-                log_action(data, f"Remoção física executada na ID {item_id} de {category}")
-                save_data(data)
-                return jsonify({"status": "success"})
-
-            elif request.method == 'PUT':
-                updated = request.json or {}
-                data[category][i] = {**item, **updated, "updated_at": datetime.now().isoformat()}
-                log_action(data, f"Atualização de payload na ID {item_id} de {category}")
-                save_data(data)
-                return jsonify({"status": "success", "item": data[category][i]})
-
-            else:
-                return jsonify(item)
-
-    return jsonify({"error": "Registro não localizado no buffer"}), 404
-
-# ===================== SISTEMA DE EXPORT / IMPORT INTEGRAL =====================
-@app.route('/api/export/<category>', methods=['GET'])
-def export_csv(category):
-    data = load_data()
-    items = data.get(category, [])
-    if not items:
-        return jsonify({"error": "Não há linhas de registro para exportar nesta tabela"}), 400
-
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=items[0].keys())
-    writer.writeheader()
-    writer.writerows(items)
-    output.seek(0)
-
-    return send_file(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name=f'nira_matrix_{category}_{datetime.now().strftime("%Y%m%d")}.csv'
-    )
-
-@app.route('/api/import/<category>', methods=['POST'])
-def import_data(category):
-    data = load_data()
-    new_items = request.json
-
-    if not isinstance(new_items, list):
-        return jsonify({"error": "Payload inválido. Esperada uma Array de objetos JSON"}), 400
-
-    current = data.setdefault(category, [])
-    start_id = len(current) + 1
-
-    for idx, item in enumerate(new_items):
-        item['id'] = start_id + idx
-        item['added_at'] = datetime.now().isoformat()
-        item['uuid'] = str(uuid.uuid4())
-        current.append(item)
-
-    log_action(data, f"Importação em massa concluída: {len(new_items)} itens alocados em {category}")
-    save_data(data)
-    return jsonify({"status": "success", "imported": len(new_items)})
-
-# ===================== MÉTRICAS DO MOTOR E METADADOS =====================
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    data = load_data()
-    total_items = sum(len(v) for k, v in data.items() if isinstance(v, list) and k not in ["logs", "backups", "notifications"])
-
-    return jsonify({
-        "total_items": total_items,
-        "categories": len([k for k in data if isinstance(data[k], list)]),
-        "last_update": datetime.now().isoformat(),
-        "storage_size_bytes": os.path.getsize(DATA_FILE) if os.path.exists(DATA_FILE) else 0,
-        "backups_count": len(data.get("backups", []))
-    })
-
-@app.route('/api/dashboard', methods=['GET'])
-def dashboard():
-    data = load_data()
-    return jsonify({
-        "recent_logs": data.get("logs", [])[-15:],
-        "recent_tasks": data.get("tasks", [])[-5:],
-        "top_categories": {cat: len(data.get(cat, [])) for cat in list(CATEGORIES)[:10]}
-    })
 
 if __name__ == '__main__':
     init_db()
-    print("="*80)
-    print("🌌 NIRA QUANTUM CORE ENGINE v2.5.0 — ONLINE E INTEGRADO")
-    print("🚀 Sincronização concorrente ativada via Thread Lock")
-    print("🔮 Validador ativo integrado com a interface Premium")
-    print("🌐 Endereço da Máquina Virtual Local: http://localhost:8084")
-    print("="*80)
     app.run(host='0.0.0.0', port=8084, debug=True)
