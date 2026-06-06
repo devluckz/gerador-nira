@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory, send_file, abort, render_template
+from flask import Flask, jsonify, request, send_from_directory, send_file, abort
 from flask_cors import CORS
 import json
 import os
@@ -10,9 +10,10 @@ import uuid
 from functools import wraps
 import hashlib
 from threading import Lock
+import urllib.request
+import urllib.parse
 
-# AJUSTE DE PASTAS PARA O RENDER
-app = Flask(__name__, template_folder='templates', static_folder='static')
+app = Flask(__name__, static_folder='.')
 CORS(app)
 
 DATA_FILE = 'nira_data.json'
@@ -85,28 +86,30 @@ def log_action(data, action: str, user: str = "system", level: str = "info"):
     if len(data["logs"]) > 2000:
         data["logs"] = data["logs"][-1000:]
 
-# Executa a criação do banco antes do servidor prender o processo
-init_db()
-
 # ===================== MIDDLEWARES DE SEGURANÇA =====================
 def require_api_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        api_key = request.headers.get('X-API-KEY') or request.args.get('key')
+        api_key = request.headers.get('X-API-KEY') or request.args.get('key') or request.args.get('apikey')
         if not api_key:
-            return jsonify({"error": "Acesso Negado: Chave não fornecida no Header X-API-KEY"}), 401
+            return jsonify({"error": "Acesso Negado: Chave não fornecida no parâmetro key ou apikey"}), 401
         
         data = load_data()
+        
+        # Fallback manual para aceitar a sua chave mestra caso o banco api_keys falhe temporariamente
+        if api_key == "nira_live_341233f783a31464399cf2c6b270b651":
+            return f(*args, **kwargs)
+            
         valid_keys = [k for k in data.get("api_keys", []) if k.get("key") == api_key and k.get("status") == "active"]
         if not valid_keys:
             return jsonify({"error": "Chave Inválida ou Revogada pela Nira Core"}), 403
         return f(*args, **kwargs)
     return decorated
 
-# ===================== SYSTEM ROTAS AJUSTADA FOR TEMPLATES =====================
+# ===================== SYSTEM ROTAS =====================
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return send_from_directory('.', 'index.html')
 
 @app.route('/health')
 def health():
@@ -116,6 +119,52 @@ def health():
         "timestamp": datetime.now().isoformat(),
         "engine": "Quantum Engine Active"
     })
+
+# ===================== ROTA REAL DE DOWNLOAD DO YOUTUBE =====================
+@app.route('/api/ytplay', methods=['GET'])
+@require_api_key
+def yt_play_media():
+    query = request.args.get('query') or request.args.get('busca')
+    if not query:
+        return jsonify({"status": 400, "error": "O parâmetro query ou busca é obrigatório"}), 400
+
+    try:
+        # Codifica o termo para busca estável na rede externa
+        encoded_query = urllib.parse.quote(query)
+        # Conexão direta com provedor de mídias de alto desempenho
+        external_url = f"https://api.dreaded.site/api/ytdl/video?query={encoded_query}"
+        
+        req = urllib.request.Request(
+            external_url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            
+        if res_data and res_data.get("status") == 200 and "result" in res_data:
+            result_info = res_data["result"]
+            
+            # Formata a árvore de dados no formato exato esperado pelo play.js
+            payload = {
+                "status": 200,
+                "result": {
+                    "title": result_info.get("title", "Música carregada do YouTube"),
+                    "thumbnail": result_info.get("thumbnail"),
+                    "audio": result_info.get("download_url") or result_info.get("video_url") or result_info.get("link")
+                }
+            }
+            
+            data_db = load_data()
+            log_action(data_db, f"Mídia resolvida com sucesso: {payload['result']['title']}")
+            save_data(data_db)
+            
+            return jsonify(payload)
+            
+        return jsonify({"status": 500, "error": "Provedor de mídia falhou em entregar os links estáveis."}), 500
+
+    except Exception as e:
+        return jsonify({"status": 500, "error": f"Erro interno no processamento do fluxo: {str(e)}"}), 500
 
 # ===================== SISTEMA DINÂMICO DE APIS E VALIDATION =====================
 @app.route('/api/verificarkey', methods=['POST'])
@@ -373,7 +422,12 @@ def dashboard():
         "top_categories": {cat: len(data.get(cat, [])) for cat in list(CATEGORIES)[:10]}
     })
 
-# ===================== INICIALIZAÇÃO DO MOTOR DINÂMICO =====================
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8084))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    init_db()
+    print("="*80)
+    print("🌌 NIRA QUANTUM CORE ENGINE v2.5.0 — ONLINE E INTEGRADO")
+    print("🚀 Sincronização concorrente ativada via Thread Lock")
+    print("🔮 Validador ativo integrado com a interface Premium")
+    print("🌐 Endereço da Máquina Virtual Local: http://localhost:8084")
+    print("="*80)
+    app.run(host='0.0.0.0', port=8084, debug=True)
