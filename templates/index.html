@@ -1,0 +1,403 @@
+index.html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIRA OS // CORE INTERFACE</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #080b11;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --border-glow: rgba(56, 189, 248, 0.2);
+            --neon-blue: #00d2ff;
+            --neon-purple: #9d4edd;
+            --neon-green: #00ff87;
+            --neon-pink: #ff007f;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            padding: 15px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 210, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(157, 78, 221, 0.05) 0%, transparent 40%);
+        }
+
+        .dashboard {
+            max-width: 800px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            padding-bottom: 40px;
+        }
+
+        /* HEADER CIBERNÉTICO */
+        header {
+            text-align: center;
+            padding: 20px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple), var(--neon-pink));
+        }
+
+        header h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 26px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #fff 30%, var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--neon-blue);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin: 5px 0 0 0;
+            opacity: 0.8;
+        }
+
+        /* CARDS GLASSMORPHISM */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .card h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            border-left: 3px solid var(--neon-purple);
+            padding-left: 8px;
+        }
+
+        /* STATUS GRID Quick View */
+        .status-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .status-node {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .status-node .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .status-node .val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--neon-green);
+            margin-top: 4px;
+        }
+
+        /* INPUTS E FORMULÁRIOS PREMIUM */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        input, select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
+        }
+
+        /* BOTÕES GLOWING NEON */
+        button {
+            width: 100%;
+            background: linear-gradient(135deg, var(--neon-purple), #6366f1);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(157, 78, 221, 0.4);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-cyan {
+            background: linear-gradient(135deg, var(--neon-blue), #0284c7);
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+        }
+
+        /* DISPLAY DE CHAVES INCRÍVEL */
+        .key-box {
+            margin-top: 15px;
+            background: #04060a;
+            border: 1px dashed var(--neon-green);
+            border-radius: 10px;
+            padding: 12px;
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .key-string {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--neon-green);
+            font-size: 13px;
+            word-break: break-all;
+            text-align: center;
+            user-select: all;
+        }
+
+        /* LISTA DINÂMICA DE CHAVES */
+        .key-list {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .key-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px 12px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-premium { background: rgba(157, 78, 221, 0.2); color: var(--neon-purple); border: 1px solid var(--neon-purple); }
+        .badge-free { background: rgba(156, 163, 175, 0.2); color: var(--text-muted); border: 1px solid var(--text-muted); }
+        .badge-vip { background: rgba(255, 0, 127, 0.2); color: var(--neon-pink); border: 1px solid var(--neon-pink); }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <header>
+        <h1>NIRA CORE SYSTEM</h1>
+        <p>Quantum Token Manager v2.5</p>
+    </header>
+
+    <div class="status-bar">
+        <div class="status-node">
+            <div class="label">System Core</div>
+            <div class="val" style="color: var(--neon-blue);">ONLINE</div>
+        </div>
+        <div class="status-node">
+            <div class="label">Chaves Ativas</div>
+            <div id="activeKeysCount" class="val">0</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>⚡ INSTANCIAR PARÂMETROS DE CHAVE</h2>
+        <div class="form-group">
+            <label>Identificador de Alvo (Nome)</label>
+            <input type="text" id="keyName" placeholder="Ex: IA_AUTO_PROD">
+        </div>
+        <div class="form-group">
+            <label>Nível de Liberação (Plano)</label>
+            <select id="keyPlan">
+                <option value="free">Tier 1: Free Access</option>
+                <option value="premium" selected>Tier 2: Premium Speed</option>
+                <option value="vip">Tier 3: VIP Overclock</option>
+            </select>
+        </div>
+        <button onclick="gerarTokenReal()">Executar Protocolo de Geração</button>
+
+        <div class="key-box" id="outputBox">
+            <div style="font-size: 10px; color: var(--neon-green); text-align: center; margin-bottom: 5px; font-family: 'JetBrains Mono'; font-weight: bold;">CHAVE INTEGRADA COM SUCESSO</div>
+            <div class="key-string" id="keyString" onclick="copiarChave()">nira_live_...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🔒 VALIDADOR DE CHAVES EM TEMPO REAL</h2>
+        <div class="form-group">
+            <label>Token Destinatário</label>
+            <input type="text" id="tokenInput" placeholder="Cole sua chave nira_live_ aqui para validar">
+        </div>
+        <button class="btn-cyan" onclick="validarTokenReal()">Checar Integridade do Token</button>
+    </div>
+
+    <div class="card">
+        <h2>🗂️ TERMINAIS E TOKENS REGISTRADOS</h2>
+        <div class="key-list" id="globalKeyList">
+            <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 15px;">Nenhum token indexado na memória local.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Executa ao carregar a página para puxar os tokens do nira_data.json
+    window.onload = function() {
+        atualizarPainel();
+        setInterval(atualizarPainel, 5000); // Auto-refresh a cada 5 segundos
+    }
+
+    async function atualizarPainel() {
+        try {
+            const res = await fetch('/api/data');
+            const data = await res.json();
+            const keys = data.api_keys || [];
+            
+            // Atualiza contador
+            document.getElementById('activeKeysCount').innerText = keys.filter(k => k.status === 'active').length;
+            
+            // Atualiza lista visual
+            const listContainer = document.getElementById('globalKeyList');
+            if(keys.length === 0) {
+                listContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 15px;">Nenhum token indexado na memória local.</div>`;
+                return;
+            }
+
+            listContainer.innerHTML = keys.map(k => `
+                <div class="key-item">
+                    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">${k.name}</div>
+                    <div style="color: var(--neon-blue); font-size: 11px; font-family: monospace;">${k.key.substring(0,14)}...</div>
+                    <span class="badge badge-${k.plan}">${k.plan}</span>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            console.log("Erro de sincronização com o Nira Core.");
+        }
+    }
+
+    async function gerarTokenReal() {
+        const nameInput = document.getElementById('keyName').value.trim() || "DISPOSITIVO_MOVEL";
+        const planSelect = document.getElementById('keyPlan').value;
+        
+        try {
+            const res = await fetch('/api/generate_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: nameInput, plan: planSelect, user: "admin" })
+            });
+            const data = await res.json();
+            
+            if(data.status === "success") {
+                document.getElementById('outputBox').style.display = 'block';
+                document.getElementById('keyString').innerText = data.token.key;
+                atualizarPainel();
+            }
+        } catch(e) {
+            alert("Falha Crítica de Geração.");
+        }
+    }
+
+    async function validarTokenReal() {
+        const token = document.getElementById('tokenInput').value.trim();
+        if(!token) return alert("Insira um token válido.");
+
+        try {
+            const res = await fetch('/api/verificarkey', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: token })
+            });
+            const data = await res.json();
+            
+            if(data.authorization === true) {
+                alert(`✅ TOKEN INTEGRAL E AUTORIZADO!\nStatus: Ativo no Banco de Dados`);
+            } else {
+                alert(`❌ ACESSO NEGADO!\nMotivo: ${data.message || 'Token inválido/Revogado'}`);
+            }
+        } catch(e) {
+            alert("Erro na resposta do Servidor.");
+        }
+    }
+
+    function copiarChave() {
+        const txt = document.getElementById('keyString').innerText;
+        navigator.clipboard.writeText(txt);
+        alert("Chave copiada para a área de transferência!");
+    }
+</script>
+</body>
+          </html>
