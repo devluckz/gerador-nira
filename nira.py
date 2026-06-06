@@ -1,17 +1,13 @@
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import json
 import os
 import secrets
-from datetime import datetime, timedelta
-import csv
-import io
-import uuid
+from datetime import datetime
 from functools import wraps
 from threading import Lock
 import urllib.request
 import urllib.parse
-import traceback
 import random
 
 app = Flask(__name__, static_folder='.')
@@ -25,7 +21,7 @@ db_lock = Lock()
 CATEGORIES = [
     "youtube", "instagram", "twitter", "tiktok", "facebook", "pinterest", "linkedin",
     "chatgpt", "gemini", "grok", "claude", "deepseek", "google_translate",
-    "freefire", "roblox", "minecraft", "fortnite", "valorant",
+    "freefire", "roblox", "minecraft", "fortnite", "valorant", "clashroyale",
     "proxies", "vpn", "accounts", "scripts", "tools", "settings", "logs", "api_keys"
 ]
 
@@ -38,9 +34,9 @@ def init_db():
             
             initial["settings"] = {
                 "theme": "dark", "auto_refresh": True, "language": "pt-BR",
-                "panel_name": "NIRA SYSTEM OPERATOR", "version": "2.8.0"
+                "panel_name": "NIRA SYSTEM OPERATOR", "version": "2.9.0"
             }
-            initial["logs"] = [{"timestamp": datetime.now().isoformat(), "action": "Nira Quantum Core v2.8.0 Online", "user": "system", "level": "info"}]
+            initial["logs"] = [{"timestamp": datetime.now().isoformat(), "action": "Nira Quantum Core v2.9.0 Online", "user": "system", "level": "info"}]
             initial["api_keys"] = []
 
             with open(DATA_FILE, 'w', encoding='utf-8') as f:
@@ -58,13 +54,6 @@ def save_data(data):
     with db_lock:
         with open(DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-
-def log_action(data, action: str, user: str = "system", level: str = "info"):
-    if "logs" not in data:
-        data["logs"] = []
-    data["logs"].append({"timestamp": datetime.now().isoformat(), "action": action, "user": user, "level": level})
-    if len(data["logs"]) > 1000:
-        data["logs"] = data["logs"][-500:]
 
 # ===================== MIDDLEWARE DE SEGURANÇA =====================
 def require_api_key(f):
@@ -88,47 +77,61 @@ def require_api_key(f):
 def index(): return send_from_directory('.', 'index.html')
 
 @app.route('/health')
-def health(): return jsonify({"status": "online", "version": "2.8.0"})
+def health(): return jsonify({"status": "online", "version": "2.9.0"})
 
 
 # =====================================================================
-# 🔥 MOTOR REAL 01: DOWNLOADS (YOUTUBE / PLAY)
+# 🔥 MOTOR REAL 01: DOWNLOADS YOUTUBE (CORRIGIDO PARA LINK CURTO & BUSCA)
 # =====================================================================
 @app.route('/api/ytplay', methods=['GET'])
 @require_api_key
 def yt_play_media():
     query = (request.args.get('query') or request.args.get('busca') or "").strip()
-    if not query or len(query) < 2:
-        return jsonify({"status": 400, "error": "Query inválida"}), 400
+    if not query:
+        return jsonify({"status": 400, "error": "Query ou link inválido"}), 400
+
+    # Tratamento corretivo inteligente para links encurtados ou shorts do YouTube
+    if "youtu.be/" in query:
+        try:
+            video_id = query.split("youtu.be/")[1].split("?")[0]
+            query = f"https://www.youtube.com/watch?v={video_id}"
+        except Exception:
+            pass
+    elif "youtube.com/shorts/" in query:
+        try:
+            video_id = query.split("/shorts/")[1].split("?")[0]
+            query = f"https://www.youtube.com/watch?v={video_id}"
+        except Exception:
+            pass
 
     try:
         encoded = urllib.parse.quote(query)
-        external_url = f"https://api.botcrazyleo.workers.dev/api/downloader/ytmp3?url={encoded}"
+        external_url = f"https://api.botcrazyleo.workers.dev/api/downloader/ytmp4?url={encoded}"
         req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
 
         with urllib.request.urlopen(req, timeout=25) as response:
             res_data = json.loads(response.read().decode('utf-8'))
 
         if not res_data or not res_data.get("status") or "result" not in res_data:
-            return jsonify({"status": 502, "error": "Provedor do YouTube indisponível"}), 502
+            return jsonify({"status": 502, "error": "Provedor do YouTube indisponível no momento"}), 502
 
         result = res_data["result"]
-        payload = {
+        return jsonify({
             "status": 200,
             "result": {
-                "title": result.get("title", query),
-                "thumbnail": result.get("thumb"),
-                "audio": result.get("audio"),
-                "url": result.get("audio")
+                "title": result.get("title", "YouTube Media"),
+                "thumbnail": result.get("thumb") or result.get("thumbnail"),
+                "audio": result.get("audio") or result.get("url"),
+                "video_url": result.get("video") or result.get("url"),
+                "url": result.get("url")
             }
-        }
-        return jsonify(payload)
+        })
     except Exception as e:
-        return jsonify({"status": 500, "error": "Erro no processamento do áudio"}), 500
+        return jsonify({"status": 500, "error": f"Erro interno: {str(e)}"}), 500
 
 
 # =====================================================================
-# 🔥 MOTOR REAL 02: DOWNLOADS UNIVERSAIS (INSTAGRAM, TIKTOK, TWITTER, PINTEREST, FACEBOOK)
+# 🔥 MOTOR REAL 02: DOWNLOADS REDES SOCIAIS (INSTAGRAM, TIKTOK, TWITTER, FB)
 # =====================================================================
 @app.route('/api/download/social', methods=['GET'])
 @require_api_key
@@ -139,7 +142,6 @@ def general_social_download():
 
     try:
         encoded_url = urllib.parse.quote(media_url.strip())
-        # Esse endpoint suporta de forma inteligente links das principais redes sociais
         external_url = f"https://api.botcrazyleo.workers.dev/api/downloader/all?url={encoded_url}"
         req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
 
@@ -147,7 +149,7 @@ def general_social_download():
             res_data = json.loads(response.read().decode('utf-8'))
 
         if not res_data or not res_data.get("status") or "result" not in res_data:
-            return jsonify({"status": 502, "error": "Não foi possível extrair a mídia desse link"}), 502
+            return jsonify({"status": 502, "error": "Não foi possível extrair a mídia desse link ou conta privada"}), 502
 
         result = res_data["result"]
         return jsonify({
@@ -164,12 +166,11 @@ def general_social_download():
 
 
 # =====================================================================
-# 🔥 MOTOR REAL 03: INTELIGÊNCIA ARTIFICIAL INTEGRAÇÃO (CHATGPT, GEMINI, GROK, CLAUDE)
+# 🔥 MOTOR REAL 03: INTEGRAÇÃO INTELIGÊNCIA ARTIFICIAL (CHATGPT, GEMINI, GROK, CLAUDE)
 # =====================================================================
 @app.route('/api/ai/chat', methods=['POST', 'GET'])
 @require_api_key
 def ai_multimodel_chat():
-    # Suporta receber tanto por GET (comandos rápidos do bot) quanto POST (dados estruturados do APK)
     if request.method == 'POST':
         body = request.get_json(silent=True) or {}
         prompt = body.get("prompt", "").strip()
@@ -183,9 +184,7 @@ def ai_multimodel_chat():
 
     try:
         encoded_prompt = urllib.parse.quote(prompt)
-        
-        # Seleciona o endpoint ideal dependendo do modelo chamado pelo bot
-        if model in ["gemini", "grok", "claude"]:
+        if model in ["gemini", "grok", "claude", "deepseek"]:
             external_url = f"https://api.botcrazyleo.workers.dev/api/ai/llama3?prompt={encoded_prompt}"
         else:
             external_url = f"https://api.botcrazyleo.workers.dev/api/ai/gpt3?prompt={encoded_prompt}"
@@ -214,14 +213,13 @@ def ai_multimodel_chat():
 @require_api_key
 def google_translator_tool():
     text = request.args.get('text', '').strip()
-    target_lang = request.args.get('to', 'pt').strip() # Destino (ex: pt, en, es)
+    target_lang = request.args.get('to', 'pt').strip()
     
     if not text:
         return jsonify({"status": 400, "error": "Texto para tradução é obrigatório"}), 400
 
     try:
         encoded_text = urllib.parse.quote(text)
-        # Consome a API do tradutor oficial do ecossistema de workers públicos
         external_url = f"https://api.botcrazyleo.workers.dev/api/tools/translate?text={encoded_text}&lang={target_lang}"
         req = urllib.request.Request(external_url, headers={'User-Agent': 'Mozilla/5.0'})
         
@@ -241,7 +239,7 @@ def google_translator_tool():
 
 
 # =====================================================================
-# 🔥 MOTOR REAL 05: UNIVERSO JOGOS (MINECRAFT, ROBLOX, FREE FIRE, ETC)
+# 🔥 MOTOR REAL 05: UNIVERSO JOGOS ATUAIS (MINECRAFT, ROBLOX, FF, CLASH ROYALE)
 # =====================================================================
 @app.route('/api/games/profile', methods=['GET'])
 @require_api_key
@@ -250,10 +248,10 @@ def games_profile_and_stats():
     username = request.args.get('username', '').strip()
 
     if not username:
-        return jsonify({"status": 400, "error": "Nome do jogador ou ID é obrigatório"}), 400
+        return jsonify({"status": 400, "error": "Nome do jogador, Tag ou ID é obrigatório"}), 400
 
     try:
-        # Consulta de Skin e Perfil Real de Minecraft via Mojang Data Link
+        # Minecraft Real Mojang Profiler
         if game == "minecraft":
             url_mojang = f"https://api.mojang.com/users/profiles/minecraft/{urllib.parse.quote(username)}"
             with urllib.request.urlopen(urllib.request.Request(url_mojang, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10) as resp:
@@ -273,29 +271,57 @@ def games_profile_and_stats():
                 }
             })
 
-        # Módulo de simulação/gerador estético para Jogos mobile (Free Fire, Roblox, Fortnite)
-        # Ótimo para brincadeiras de inventário, patentes e diamantes nos grupos do bot
+        # Nova Rota Exclusiva e Detalhada para Clash Royale (Simulador Estético de Perfil por Tag)
+        elif game in ["clashroyale", "clash", "cr"]:
+            arenas = [
+                "Arena 1: Estádio Goblin", "Arena 4: Parquinho P.E.K.K.A", "Arena 7: Arena Real", 
+                "Arena 12: Cidade Assombrada", "Arena 15: Arena Lendária", "Liga Maior: Desafiante I", 
+                "Liga Suprema: Campeão Maior", "Campeão do Mundo"
+            ]
+            cartas_favoritas = ["Megacavaleiro", "Corredor", "P.E.K.K.A", "Tronco", "Mago Elétrico", "Dragão Infernal", "Bruxa"]
+            clans = ["Os Lendários BR", "Clash Kings", "Elite Royale", "Alpha Team", "Sem Clã"]
+            
+            clean_tag = username.upper().replace("#", "")
+            
+            return jsonify({
+                "status": 200,
+                "game": "clashroyale",
+                "result": {
+                    "player_name": f"Player_{clean_tag[:4]}",
+                    "tag": f"#{clean_tag}",
+                    "trophies": random.randint(2300, 8500),
+                    "highest_trophies": random.randint(5000, 9000),
+                    "arena": random.choice(arenas),
+                    "clan": random.choice(clans),
+                    "wins": random.randint(150, 4500),
+                    "favorite_card": random.choice(cartas_favoritas),
+                    "star_level": random.randint(1, 3),
+                    "status_server": "ONLINE"
+                }
+            })
+
+        # Módulo de simulação/gerador estético para outros Jogos Mobile (Free Fire, Roblox, Fortnite)
         else:
-            patentes = ["Bronze", "Prata", "Ouro", "Platina", "Diamante", "Mestre", "Desafiante"]
-            itens_raros = ["Calça Angelical", "Gola Alta Preta", "Skin Lendária de Arma", "Cubo Mágico", "Dominus Real", "Moletom de Admin"]
+            patentes = ["Bronze III", "Prata I", "Ouro IV", "Platina II", "Diamante V", "Mestre", "Desafiante", "Elite Global"]
+            itens_raros = ["Calça Angelical", "Gola Alta Preta", "Skin Mítica", "Cubo Mágico", "Dominus Real", "Moletom de Admin", "V-Bucks Pack"]
             
             return jsonify({
                 "status": 200,
                 "game": game,
                 "result": {
                     "player": username,
-                    "level": random.randint(15, 87),
+                    "level": random.randint(12, 94),
                     "rank": random.choice(patentes),
-                    "premium_currency": random.randint(10, 15000),
+                    "premium_currency": random.randint(5, 22000),
                     "inventory_highlight": random.sample(itens_raros, k=2),
                     "status_server": "ONLINE"
                 }
             })
-    except Exception:
-        return jsonify({"status": 500, "error": "Erro ao compilar dados do jogo solicitado"}), 500
+    except Exception as e:
+        return jsonify({"status": 500, "error": f"Erro ao compilar dados do jogo: {str(e)}"}), 500
 
 
-# ===================== SISTEMA DE CHAVES E TOKENS ANTERIOR MANTIDO =====================
+# ===================== SISTEMA DE CHAVES E TOKENS MANTIDO E ESTÁVEL =====================
 @app.route('/api/verificarkey', methods=['POST'])
 def verificar_key_publica():
     req_data = request.get_json(silent=True) or {}
@@ -314,7 +340,7 @@ def generate_token():
     req_body = request.get_json(silent=True) or {}
     token_entry = {
         "id": len(data.get("api_keys", [])) + 1,
-        "name": req_body.get("name", "Terminal"),
+        "name": req_body.get("name", "Terminal Custom"),
         "key": new_token,
         "plan": "premium",
         "added_at": datetime.now().isoformat(),
