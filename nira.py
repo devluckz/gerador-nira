@@ -11,7 +11,7 @@ from functools import wraps
 import hashlib
 from threading import Lock
 
-# CONFIGURAÇÃO DE AMBIENTE E PASTAS ADAPTADA PARA PRODUÇÃO NO RENDER
+# AJUSTE DE PASTAS PARA O RENDER
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
@@ -85,7 +85,7 @@ def log_action(data, action: str, user: str = "system", level: str = "info"):
     if len(data["logs"]) > 2000:
         data["logs"] = data["logs"][-1000:]
 
-# GARANTIR QUE O BANCO EXISTA AO EXECUTAR VIA GUNICORN
+# Executa a criação do banco antes do servidor prender o processo
 init_db()
 
 # ===================== MIDDLEWARES DE SEGURANÇA =====================
@@ -373,8 +373,7 @@ def dashboard():
         "top_categories": {cat: len(data.get(cat, [])) for cat in list(CATEGORIES)[:10]}
     })
 
-# ===================== INICIALIZAÇÃO DINÂMICA DO PROCESSO =====================
+# ===================== INICIALIZAÇÃO DO MOTOR DINÂMICO =====================
 if __name__ == '__main__':
-    # Lê a porta que o Render escolher dinamicamente
-    port = int(os.environ.get("PORT", 8084))
+    port = int(os.environ.get('PORT', 8084))
     app.run(host='0.0.0.0', port=port, debug=False)
